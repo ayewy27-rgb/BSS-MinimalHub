@@ -1,96 +1,56 @@
---// BSS Minimal Hub | Public
---// Clean • Minimal • Powerful
---// PlaceId: Bee Swarm Simulator
+-- GameExploitScanner
+-- READ ONLY | DEV TOOL
+-- DOES NOT MODIFY GAMEPLAY
 
-if game.PlaceId ~= 1537690962 then
-    warn("This hub works only in Bee Swarm Simulator")
-    return
-end
-
--- Services
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local player = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Anti AFK (разрешённый)
-for _,v in pairs(getconnections(player.Idled)) do
-    v:Disable()
+print("=== GameExploitScanner LOADED ===")
+
+-- CONFIG (ТОЛЬКО ДЛЯ ЛОГОВ)
+local MAX_CALLS_PER_SEC = 20
+local MAX_NUMBER_VALUE = 1e7
+
+-- DATA
+local callLog = {}
+
+local function logWarning(...)
+	warn("[EXPLOIT SCAN]", ...)
 end
 
--- UI Library (Rayfield)
-local Rayfield = loadstring(game:HttpGet(
-    "https://raw.githubusercontent.com/shlexware/Rayfield/main/source"
-))()
+-- REMOTE EVENT SCAN
+for _,remote in ipairs(ReplicatedStorage:GetDescendants()) do
+	if remote:IsA("RemoteEvent") then
+		callLog[remote] = {}
 
-local Window = Rayfield:CreateWindow({
-    Name = "BSS Minimal Hub",
-    LoadingTitle = "Bee Swarm Simulator",
-    LoadingSubtitle = "Public Hub • Minimalism",
-    ConfigurationSaving = {
-        Enabled = true,
-        FolderName = "BSSMinimalHub",
-        FileName = "Config"
-    }
-})
+		remote.OnServerEvent:Connect(function(player, ...)
+			local now = os.clock()
 
--- Tabs
-local FarmTab = Window:CreateTab("🌾 Farm", 4483362458)
-local MiscTab = Window:CreateTab("⚙️ Misc", 4483362458)
+			callLog[remote][player] = callLog[remote][player] or {}
+			local data = callLog[remote][player]
 
--- Variables
-local AutoFarm = false
+			data.calls = data.calls or {}
+			table.insert(data.calls, now)
 
--- Autofarm (простая, чистая логика)
-local function StartAutoFarm()
-    task.spawn(function()
-        while AutoFarm do
-            pcall(function()
-                local char = player.Character
-                local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    hrp.CFrame = hrp.CFrame * CFrame.new(0, 0, -2)
-                end
-            end)
-            task.wait(0.2)
-        end
-    end)
-end
+			-- clean old timestamps
+			for i = #data.calls, 1, -1 do
+				if now - data.calls[i] > 1 then
+					table.remove(data.calls, i)
+				end
+			end
 
-FarmTab:CreateToggle({
-    Name = "Auto Farm (Simple)",
-    CurrentValue = false,
-    Flag = "AutoFarm",
-    Callback = function(Value)
-        AutoFarm = Value
-        if Value then
-            StartAutoFarm()
-        end
-    end
-})
+			-- 1️⃣ СПАМ REMOTE
+			if #data.calls > MAX_CALLS_PER_SEC then
+				logWarning(
+					"REMOTE SPAM",
+					player.Name,
+					remote.Name,
+					"calls/sec:",
+					#data.calls
+				)
+			end
 
--- FPS Boost
-MiscTab:CreateButton({
-    Name = "FPS Boost",
-    Callback = function()
-        for _,v in pairs(workspace:GetDescendants()) do
-            if v:IsA("BasePart") then
-                v.Material = Enum.Material.SmoothPlastic
-                v.Reflectance = 0
-            elseif v:IsA("Decal") or v:IsA("Texture") then
-                v:Destroy()
-            end
-        end
-        Rayfield:Notify({
-            Title = "FPS Boost",
-            Content = "Optimization applied",
-            Duration = 4
-        })
-    end
-})
-
--- Notification
-Rayfield:Notify({
-    Title = "BSS Minimal Hub",
-    Content = "Loaded successfully",
-    Duration = 5
-})
+			-- 2️⃣ ВЫЗОВ БЕЗ ПЕРСОНАЖА
+			if not player.Character then
+				logWarning(
+					"REMOTE WIT
